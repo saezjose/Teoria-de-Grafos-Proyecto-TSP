@@ -1,0 +1,6 @@
+customtkinter
+matplotlib
+contextily
+numpy
+requests
+pillow
