@@ -16,12 +16,16 @@ class AppTSP(ctk.CTk):
         self.title("TSP Solver - Evaluación 2")
         self.geometry("1000x650")
         
+        self.is_closing = False
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         self.nombres = list(CIUDADES.keys())
         self.coords = list(CIUDADES.values())
         self.matriz = generar_matriz_distancias(self.coords, metric='aereo')
         self.n = len(self.nombres)
         self.res_optimo = None
         self.res_heuristica = None
+        self.animation_after_id = None
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -76,6 +80,21 @@ class AppTSP(ctk.CTk):
         self.main_frame.grid(row=0, column=1, sticky="nsew", padx=12, pady=12)
         self.mapa = MapaGrafico(self.main_frame, self.coords, self.nombres)
 
+    def on_closing(self):
+        """Maneja el cierre de la ventana de forma segura."""
+        if self.is_closing:
+            return
+        self.is_closing = True
+        if self.animation_after_id:
+            self.after_cancel(self.animation_after_id)
+            self.animation_after_id = None
+        
+        # Limpiar el mapa de matplotlib
+        if self.mapa:
+            self.mapa.destroy()
+            
+        self.destroy()
+
     def cambiar_metrica(self):
         # Ejecutar recalculo en background para no congelar la UI
         m = 'carretera' if self.var_metric.get() == "Carretera" else 'aereo'
@@ -90,7 +109,10 @@ class AppTSP(ctk.CTk):
             matriz = generar_matriz_distancias(self.coords, metric=m)
         except Exception as e:
             # En caso de error, programar mensaje en hilo principal
-            self.after(0, lambda: self.lbl_status.configure(text=f"Error al calcular matriz: {e}", text_color="#FF6B6B"))
+            def update_status():
+                if self.is_closing: return
+                self.lbl_status.configure(text=f"Error al calcular matriz: {e}", text_color="#FF6B6B")
+            self.after(0, update_status)
             return
 
         # Imprimir en consola el estado de la petición y la matriz en formato legible
@@ -115,6 +137,8 @@ class AppTSP(ctk.CTk):
 
         # Actualizar UI en hilo principal
         def _apply():
+            if self.is_closing:
+                return
             self.matriz = matriz
             # Mostrar si la matriz carretera fue realmente calculada o si hubo fallback
             status = getattr(logica, 'LAST_ROAD_MATRIX_STATUS', None)
@@ -148,11 +172,16 @@ class AppTSP(ctk.CTk):
         try:
             matriz = logica.generar_matriz_carretera_forzada(self.coords)
         except Exception as e:
-            self.after(0, lambda: self.lbl_status.configure(text=f"Error forzando carretera: {e}", text_color="#FF6B6B"))
+            def update_status():
+                if self.is_closing: return
+                self.lbl_status.configure(text=f"Error forzando carretera: {e}", text_color="#FF6B6B")
+            self.after(0, update_status)
             return
 
         # imprimir y aplicar en UI
         def _apply_force():
+            if self.is_closing:
+                return
             self.matriz = matriz
             self.lbl_status.configure(text="Matriz carretera (forzada) lista", text_color="#4ADE80")
             self.res_optimo = None
@@ -206,15 +235,23 @@ class AppTSP(ctk.CTk):
         self.start_algo(generador_fuerza_bruta(self.n, self.matriz), "EX", "#D35B58")
 
     def start_algo(self, generador, tipo, color):
+        if self.animation_after_id:
+            self.after_cancel(self.animation_after_id)
+            self.animation_after_id = None
+
         self.gen = generador
         self.tipo_actual = tipo
         self.color_actual = color
         self.start_time = time.time()
         self.lbl_status.configure(text=f"Ejecutando {tipo}...", text_color=color)
+        self.txt_log.configure(state="normal")
         self.txt_log.delete("0.0", "end")
+        self.txt_log.configure(state="disabled")
         self.animar()
 
     def animar(self):
+        if self.is_closing:
+            return
         try:
             ruta, costo = next(self.gen)
             self.mapa.dibujar_ruta(ruta, self.color_actual)
@@ -232,8 +269,9 @@ class AppTSP(ctk.CTk):
             self.txt_log.configure(state="disabled")
             self.lbl_status.configure(text=f"Iterando: {costo:.2f} km")
 
-            self.after(50, self.animar) 
+            self.animation_after_id = self.after(50, self.animar) 
         except StopIteration:
+            self.animation_after_id = None
             dt = time.time() - self.start_time
             # Obtener costo final desde el log (primera línea)
             log_text = self.txt_log.get("0.0", "end")

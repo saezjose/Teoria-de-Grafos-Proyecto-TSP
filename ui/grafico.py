@@ -121,3 +121,11 @@ class MapaGrafico:
         self.ax.plot(rx, ry, '-', color=color_linea, linewidth=2.5, alpha=0.9, zorder=15)
         
         self.canvas.draw()
+
+    def destroy(self):
+        """Libera los recursos de Matplotlib de forma explícita."""
+        # Destruir el widget del canvas de Tkinter
+        if self.canvas and self.canvas.get_tk_widget():
+            self.canvas.get_tk_widget().destroy()
+        # Cerrar la figura para liberar memoria y detener cualquier bucle de eventos interno
+        plt.close(self.fig)
