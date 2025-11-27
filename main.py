@@ -4,7 +4,7 @@ from core.logica import generar_matriz_distancias
 
 def imprimir_matriz_para_informe():
     print("\n" + "="*60)
-    print("--- DATOS PARA TU INFORME (COPIAR Y PEGAR) ---")
+    print("--- DATOS ---")
     print("="*60)
     
     nombres = list(CIUDADES.keys())
