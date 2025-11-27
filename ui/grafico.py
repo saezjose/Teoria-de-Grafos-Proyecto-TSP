@@ -46,6 +46,17 @@ class MapaGrafico:
         # Dibujar estado inicial
         self.reset_plot()
 
+    def update_cities(self, coords, nombres):
+        """Actualiza la lista de ciudades y redibuja el mapa."""
+        self.coords = coords
+        self.nombres = nombres
+        
+        self.mercator_coords = [ll2mercator(lat, lon) for lat, lon in self.coords]
+        self.xs = [c[0] for c in self.mercator_coords]
+        self.ys = [c[1] for c in self.mercator_coords]
+        
+        self.reset_plot()
+
     def reset_plot(self):
         self.ax.clear()
         

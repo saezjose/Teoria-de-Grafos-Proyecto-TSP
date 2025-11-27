@@ -2,11 +2,28 @@ import customtkinter as ctk
 import time
 import threading
 import math
+import queue
 from data.ciudades import CIUDADES
 from core.logica import generar_matriz_distancias
 import core.logica as logica
 from core.algoritmos import generador_vecino_mas_cercano, generador_fuerza_bruta
 from ui.grafico import MapaGrafico
+
+def _fast_forward_thread_target(generador, q, is_closing_func, estimated_time):
+    try:
+        items = list(generador)
+        if is_closing_func() or not items:
+            q.put(None)
+            return
+        final_ruta, final_costo = items[-1]
+        q.put({
+            "ruta": final_ruta,
+            "costo": final_costo,
+            "estimated_time": estimated_time
+        })
+    except Exception as e:
+        print(f"Error in fast-forward thread: {e}")
+        q.put(None)
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -20,8 +37,12 @@ class AppTSP(ctk.CTk):
         self.is_closing = False
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         
-        self.nombres = list(CIUDADES.keys())
-        self.coords = list(CIUDADES.values())
+        # Initial number of cities
+        initial_num_cities = 6
+        all_city_names = list(CIUDADES.keys())
+        
+        self.nombres = all_city_names[:initial_num_cities]
+        self.coords = [CIUDADES[name] for name in self.nombres]
         self.matriz = generar_matriz_distancias(self.coords, metric='aereo')
         self.n = len(self.nombres)
         self.res_optimo = None
@@ -42,34 +63,48 @@ class AppTSP(ctk.CTk):
         # --- SIDEBAR ---
         self.sidebar = ctk.CTkFrame(self, width=300, corner_radius=0, fg_color="#1a1a1a")
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(5, weight=1)
+        self.sidebar.grid_rowconfigure(6, weight=1)
         
         ctk.CTkLabel(self.sidebar, text="Viajante TSP", font=ctk.CTkFont(size=24, weight="bold")).grid(row=0, column=0, pady=(20, 15), padx=20, sticky='w')
         
+        # --- City Number Selection ---
+        self.frame_num_ciudades = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        self.frame_num_ciudades.grid(row=1, column=0, padx=20, pady=(0, 10), sticky='ew')
+        ctk.CTkLabel(self.frame_num_ciudades, text="Nº Ciudades:", font=ctk.CTkFont(size=14)).pack(side="left")
+        
+        self.var_num_ciudades = ctk.IntVar(value=initial_num_cities)
+        
+        rb_6 = ctk.CTkRadioButton(self.frame_num_ciudades, text="6", variable=self.var_num_ciudades, value=6, command=self.cambiar_numero_ciudades)
+        rb_6.pack(side="left", padx=(10, 5))
+        rb_7 = ctk.CTkRadioButton(self.frame_num_ciudades, text="7", variable=self.var_num_ciudades, value=7, command=self.cambiar_numero_ciudades)
+        rb_7.pack(side="left", padx=5)
+        rb_8 = ctk.CTkRadioButton(self.frame_num_ciudades, text="8", variable=self.var_num_ciudades, value=8, command=self.cambiar_numero_ciudades)
+        rb_8.pack(side="left", padx=5)
+
         self.var_metric = ctk.StringVar(value="Aéreo")
         ctk.CTkSwitch(self.sidebar, text="Modo Carretera", variable=self.var_metric, 
-                      onvalue="Carretera", offvalue="Aéreo", command=self.cambiar_metrica).grid(row=1, column=0, padx=20, pady=10, sticky='w')
+                      onvalue="Carretera", offvalue="Aéreo", command=self.cambiar_metrica).grid(row=2, column=0, padx=20, pady=10, sticky='w')
         
         btn_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        btn_frame.grid(row=2, column=0, padx=20, pady=8, sticky='ew')
+        btn_frame.grid(row=3, column=0, padx=20, pady=8, sticky='ew')
         btn_frame.grid_columnconfigure((0, 1), weight=1)
         
         ctk.CTkButton(btn_frame, text="▶ NN", command=self.run_nn, height=40).grid(row=0, column=0, padx=(0, 5), sticky='ew')
         ctk.CTkButton(btn_frame, text="✕ Limpiar", fg_color="#FF6B6B", hover_color="#FF5252", command=self.limpiar_nn, height=40).grid(row=0, column=1, padx=(5, 0), sticky='ew')
         
         btn_frame2 = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        btn_frame2.grid(row=3, column=0, padx=20, pady=8, sticky='ew')
+        btn_frame2.grid(row=4, column=0, padx=20, pady=8, sticky='ew')
         btn_frame2.grid_columnconfigure((0, 1), weight=1)
         
         ctk.CTkButton(btn_frame2, text="▶ BF", fg_color="#D35B58", hover_color="#C74542", command=self.run_ex, height=40).grid(row=0, column=0, padx=(0, 5), sticky='ew')
         ctk.CTkButton(btn_frame2, text="✕ Limpiar", fg_color="#FF6B6B", hover_color="#FF5252", command=self.limpiar_bf, height=40).grid(row=0, column=1, padx=(5, 0), sticky='ew')
 
         self.btn_skip = ctk.CTkButton(self.sidebar, text="≫ Omitir Animación", command=self.skip_animation, height=30, fg_color="#333", hover_color="#444")
-        self.btn_skip.grid(row=4, column=0, padx=20, pady=(5, 10), sticky='ew')
+        self.btn_skip.grid(row=5, column=0, padx=20, pady=(5, 10), sticky='ew')
         self.btn_skip.configure(state="disabled")
 
         self.frame_res = ctk.CTkFrame(self.sidebar, fg_color="#242424", corner_radius=10)
-        self.frame_res.grid(row=5, column=0, padx=15, pady=15, sticky='nsew')
+        self.frame_res.grid(row=6, column=0, padx=15, pady=15, sticky='nsew')
         self.frame_res.grid_rowconfigure(2, weight=1)
         
         self.lbl_status = ctk.CTkLabel(self.frame_res, text="Esperando...", font=("Arial", 13), text_color="#AAB8C2")
@@ -84,6 +119,37 @@ class AppTSP(ctk.CTk):
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.main_frame.grid(row=0, column=1, sticky="nsew", padx=12, pady=12)
         self.mapa = MapaGrafico(self.main_frame, self.coords, self.nombres)
+
+    def cambiar_numero_ciudades(self):
+        num = self.var_num_ciudades.get()
+        if num == self.n:
+            return
+
+        self.lbl_status.configure(text=f"Cambiando a {num} ciudades...", text_color="#FFA500")
+
+        # Get the first 'num' cities from the original list
+        all_city_names = list(CIUDADES.keys())
+        selected_cities = all_city_names[:num]
+        
+        self.nombres = selected_cities
+        self.coords = [CIUDADES[name] for name in self.nombres]
+        self.n = len(self.nombres)
+
+        # Reset map and results
+        self.res_optimo = None
+        self.res_heuristica = None
+        self.lbl_gap.configure(text="GAP: -")
+        self.txt_log.configure(state="normal")
+        self.txt_log.delete("0.0", "end")
+        self.txt_log.configure(state="disabled")
+        
+        # Recreate the map with new coordinates
+        if self.mapa:
+            self.mapa.destroy()
+        self.mapa = MapaGrafico(self.main_frame, self.coords, self.nombres)
+
+        # Recalculate distance matrix
+        self.cambiar_metrica()
 
     def on_closing(self):
         if self.is_closing: return
