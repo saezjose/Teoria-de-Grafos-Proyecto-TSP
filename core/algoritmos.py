@@ -39,12 +39,12 @@ def generador_fuerza_bruta(n_ciudades, matriz):
         ruta_actual = [0] + list(perm) + [0]
         costo_actual = calcular_costo_ruta(ruta_actual, matriz)
         
+        yield ruta_actual, costo_actual
         # Solo enviamos actualización a la pantalla si encontramos un mejor camino
         # Esto hace que la animación se vea "inteligente" y no muestre millones de intentos malos
         if costo_actual < min_costo:
             min_costo = costo_actual
             mejor_ruta = list(ruta_actual)
-            yield mejor_ruta, min_costo
 
     # Entrega final garantizada
     yield mejor_ruta, min_costo
