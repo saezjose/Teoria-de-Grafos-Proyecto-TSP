@@ -32,11 +32,4 @@ Este software permite comparar el desempeño de dos estrategias algorítmicas cl
 
 ---
 
-## 🚀 Instalación y Uso
 
-Sigue estos pasos para ejecutar el proyecto en tu máquina local:
-
-### 1. Clonar el repositorio
-```bash
-git clone [https://github.com/saezjose/Teoria-de-Grafos-Proyecto-TSP.git](https://github.com/saezjose/Teoria-de-Grafos-Proyecto-TSP.git)
-cd Teoria-de-Grafos-Proyecto-TSP
