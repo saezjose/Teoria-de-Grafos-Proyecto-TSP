@@ -9,21 +9,22 @@ _ROAD_CACHE = {}
 
 # Estado de la última petición de matriz por carretera: 'ok', 'unavailable', 'partial' o None
 LAST_ROAD_MATRIX_STATUS = None
-def haversine_km(c1, c2):
-    """Distancia euclidiana sobre esfera (Aérea)."""
+def euclidian_km(c1, c2):
+    """Distancia Euclidiana (aproximación equirectangular)."""
     lat1, lon1 = c1
     lat2, lon2 = c2
     R = 6371.0
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    lon1_rad = math.radians(lon1)
+    lon2_rad = math.radians(lon2)
+    x = (lon2_rad - lon1_rad) * math.cos((lat1_rad + lat2_rad) / 2.0)
+    y = (lat2_rad - lat1_rad)
+    return R * math.sqrt(x**2 + y**2)
 
 def _road_distance_osrm(c1, c2):
     """Intenta obtener distancia por carretera, si falla usa aérea."""
-    if requests is None: return haversine_km(c1, c2)
+    if requests is None: return euclidian_km(c1, c2)
     key = (c1, c2)
     if key in _ROAD_CACHE: return _ROAD_CACHE[key]
 
@@ -37,7 +38,7 @@ def _road_distance_osrm(c1, c2):
             return dist
     except Exception:
         pass
-    return haversine_km(c1, c2)
+    return euclidian_km(c1, c2)
 
 
 def _road_matrix_osrm(coords):
@@ -98,7 +99,7 @@ def generar_matriz_distancias(coords, metric='aereo'):
                 if metric == 'carretera':
                     matriz[i][j] = _road_distance_osrm(coords[i], coords[j])
                 else:
-                    matriz[i][j] = haversine_km(coords[i], coords[j])
+                    matriz[i][j] = euclidian_km(coords[i], coords[j])
     return matriz
 
 
